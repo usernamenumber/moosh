@@ -46,9 +46,14 @@ class PluginInstall extends MooshCommand
 
         $pluginsdata = file_get_contents($pluginsfile);
         $decodeddata = json_decode($pluginsdata);
-        $downloadurl = NULL;
+        $pi = $this->get_plugin_details($decodeddata, $pluginname, $moodleversion, $pluginversion);
+        $downloadurl = $pi->downloadurl;
+	
+	# TODO: $pi doesn't include plugin type, and without that, it may not be possible to reliably get the corrent entry
+	# from the output of get_plugins(). If we can, though, we can do a version comparison and not both if the desired version ($j->version) is already installed
+	print "XXX "; print_r($pi); 
 
-        $downloadurl = $this->get_plugin_url($decodeddata, $pluginname, $moodleversion, $pluginversion);
+	exit();
 
         if(!$downloadurl) {
             die("Couldn't find $pluginname $moodleversion\n");
@@ -129,34 +134,31 @@ class PluginInstall extends MooshCommand
         return $types[$type];
     }
 
-    function get_plugin_url($pluginlist, $pluginname, $moodleversion, $pluginversion) {
+
+    function get_plugin_details($pluginlist, $pluginname, $moodleversion, $pluginversion) {
         foreach($pluginlist->plugins as $k=>$plugin) {
             if(!$plugin->component) {
                 continue;
             }
             if($plugin->component == $pluginname) {
-                $downloadurl = null;
+                $best_match = null;
                 foreach($plugin->versions as $j) {
                     foreach($j->supportedmoodles as $v) {
                         if($v->release == $moodleversion) {
                             # Record the url for the most recent (assumed to be highest) 
                             # version of plugin that is compatible with the given Moodle 
                             # version...
-                            $downloadurl = $j->downloadurl;
+                            $best_match = $j;
 
                             # ...and return it if this version matches the given 
                             # version.
                             if ($pluginversion >= 0 && $v->version == $pluginversion) {
-                                return $downloadurl;
+                                return $best_match;
                             } 
                         }
                     }
                 }
-                # Negative pluginversion indicates we should return the latest version
-                # compatible with the given version of Moodle (recorded above)
-                if ($pluginversion < 0 and ! is_null($downloadurl)) {
-                    return $downloadurl;
-                }
+	        return $best_match;
             }
         }
     }
